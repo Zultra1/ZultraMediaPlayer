@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zultra Media Player</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* --- CORE VARIABLES --- */
+        :root {
+            --bg-color: #f0f2f5;
+            --sidebar-bg: #ffffff;
+            --text-main: #333333;
+            --text-sub: #777777;
+            --accent: #e056fd; /* Zultra Purple */
+            --accent-hover: #be2edd;
+            --player-bg: #ffffff;
+            --border: #e0e0e0;
+            --shadow: 0 4px 12px rgba(0,0,0,0.1);
+            --item-hover: #f8f9fa;
+        }
+
+        body.dark-mode {
+            --bg-color: #121212;
+            --sidebar-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --text-sub: #aaaaaa;
+            --accent: #e056fd;
+            --accent-hover: #be2edd;
+            --player-bg: #252525;
+            --border: #333333;
+            --shadow: 0 4px 12px rgba(0,0,0,0.4);
+            --item-hover: #333333;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; transition: background 0.3s, color 0.3s; }
+        
+        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* --- AUTH OVERLAY --- */
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color); 
+            z-index: 9999; /* Stays on top */
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column;
+        }
+        
+        .auth-box {
+            background: var(--sidebar-bg); padding: 40px; border-radius: 12px;
+            box-shadow: var(--shadow); width: 350px; text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .auth-input {
+            width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main);
+            outline: none;
+        }
+        .auth-btn {
+            width: 100%; padding: 12px; border-radius: 25px; border: none;
+            background: var(--accent); color: white; font-weight: bold; cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .auth-btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .auth-btn:hover { opacity: 0.9; }
+        .error-msg { color: #e74c3c; font-size: 0.85rem; margin-top: 10px; min-height: 20px; }
+
+        /* --- MAIN APP (Initially Hidden via CSS class) --- */
+        #app-container {
+            display: none; /* Hidden until auth logic fires */
+            flex: 1; height: 100%; flex-direction: column;
+        }
+        #app-container.visible { display: flex; }
+
+        /* Layout */
+        .main-wrapper { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; }
+        
+        /* Sidebar Elements */
+        .app-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .user-profile { background: var(--item-hover); padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .avatar { width: 32px; height: 32px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        
+        .playlist-list { list-style: none; overflow-y: auto; flex: 1; }
+        .playlist-item { padding: 10px; border-radius: 6px; cursor: pointer; margin-bottom: 5px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+        .playlist-item:hover { background-color: var(--item-hover); }
+        .playlist-item.active { background-color: var(--accent); color: white; }
+
+        .theme-btn { margin-top: auto; padding: 10px; border: 1px solid var(--border); background: none; color: var(--text-main); border-radius: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        /* Content Area */
+        .content-area { flex: 1; padding: 30px; display: flex; flex-direction: column; overflow: hidden; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .upload-label { background: var(--accent); color: white; padding: 10px 20px; border-radius: 25px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: bold; }
+        
+        .songs-list { flex: 1; overflow-y: auto; }
+        .song-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .song-item:hover { background-color: var(--item-hover); }
+        .song-item.playing { background-color: var(--item-hover); border-left: 4px solid var(--accent); }
+        
+        /* Player Bar */
+        .player-bar { height: 100px; background: var(--player-bg); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 30px; box-shadow: var(--shadow); z-index: 100; }
+        
+        .media-preview { width: 120px; height: 68px; background: #000; border-radius: 6px; position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; margin-right: 15px; cursor: pointer; }
+        #video-element { width: 100%; height: 100%; object-fit: contain; display: none; }
+        #art-element { width: 100%; height: 100%; object-fit: cover; }
+        
+        .controls { flex: 1; display: flex; flex-direction: column; align-items: center; }
+        .btns-row { display: flex; gap: 20px; margin-bottom: 5px; align-items: center; }
+        .ctrl-btn { background: none; border: none; color: var(--text-main); font-size: 1.2rem; cursor: pointer; }
+        .play-btn { width: 45px; height: 45px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        
+        .progress-wrapper { width: 100%; max-width: 500px; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; }
+        .bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; cursor: pointer; position: relative; }
+        .bar-fill { height: 100%; background: var(--accent); width: 0%; border-radius: 3px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <div style="font-size: 3rem; color: var(--accent); margin-bottom: 10px;"><i class="fas fa-bolt"></i></div>
+            <h2 style="margin-bottom: 5px;">Zultra Music</h2>
+            <p style="margin-bottom: 20px; color: var(--text-sub);">Sign in to access your media</p>
+            
+            <input type="email" id="email" class="auth-input" placeholder="Email Address">
+            <input type="password" id="password" class="auth-input" placeholder="Password">
+            
+            <button class="auth-btn" onclick="signIn()">Sign In</button>
+            <button class="auth-btn secondary" onclick="signUp()">Create Account</button>
+            
+            <div id="auth-error" class="error-msg"></div>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <div class="main-wrapper">
+            <div class="sidebar">
+                <div class="app-title"><i class="fas fa-bolt" style="color:var(--accent)"></i> Zultra Media Player</div>
+                
+                <div class="user-profile">
+                    <div class="avatar" id="avatar-letter">U</div>
+                    <div style="overflow: hidden;">
+                        <div style="font-weight:bold; font-size:0.9rem;">Logged In</div>
+                        <div id="user-email-display" style="font-size:0.8rem; color:var(--text-sub); text-overflow:ellipsis; overflow:hidden;">...</div>
+                    </div>
+                </div>
+
+                <ul class="playlist-list">
+                    <li class="playlist-item active" onclick="filterType('all')"><i class="fas fa-list"></i> All Media</li>
+                    <li class="playlist-item" onclick="filterType('audio')"><i class="fas fa-music"></i> Audio Only</li>
+                    <li class="playlist-item" onclick="filterType('video')"><i class="fas fa-video"></i> Video Only</li>
+                </ul>
+
+                <button class="theme-btn" onclick="toggleTheme()">
+                    <i class="fas fa-moon"></i> Theme
+                </button>
+                <button class="theme-btn" onclick="logout()" style="margin-top: 10px; border-color: #e74c3c; color: #e74c3c;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+
+            <div class="content-area">
+                <div class="header">
+                    <h2 id="view-title">All Media</h2>
+                    <label class="upload-label">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload
+                        <input type="file" id="file-input" multiple accept="audio/*, video/*" style="display:none" onchange="handleUpload(this.files)">
+                    </label>
+                </div>
+                
+                <div class="songs-list" id="library-list">
+                    <div style="text-align: center; margin-top: 50px; opacity: 0.5;">Library is empty</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="player-bar">
+            <div style="display:flex; align-items:center; width:300px;">
+                <div class="media-preview" onclick="toggleFullscreen()">
+                    <img src="https://via.placeholder.com/120x68" id="art-element">
+                    <video id="video-element" playsinline></video>
+                </div>
+                <div style="overflow:hidden;">
+                    <div style="font-weight:bold;" id="track-title">Zultra Player</div>
+                    <div style="font-size:0.85rem; color:var(--text-sub);" id="track-artist">Ready</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="btns-row">
+                    <button class="ctrl-btn" onclick="prevTrack()"><i class="fas fa-step-backward"></i></button>
+                    <button class="play-btn" onclick="togglePlay()"><i class="fas fa-play" id="play-icon"></i></button>
+                    <button class="ctrl-btn" onclick="nextTrack()"><i class="fas fa-step-forward"></i></button>
+                </div>
+                <div class="progress-wrapper">
+                    <span id="curr-time">0:00</span>
+                    <div class="bar-bg" onclick="seek(event)">
+                        <div class="bar-fill" id="bar-fill"></div>
+                    </div>
+                    <span id="total-time">0:00</span>
+                </div>
+            </div>
+
+            <div style="width:300px; display:flex; justify-content:flex-end; gap:15px; align-items:center;">
+                <button class="ctrl-btn" onclick="toggleFullscreen()"><i class="fas fa-expand"></i></button>
+                <i class="fas fa-volume-up" style="color:var(--text-sub)"></i>
+                <input type="range" min="0" max="1" step="0.05" oninput="setVolume(this.value)" style="width:80px; accent-color:var(--accent);">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqhm6v1epzDxuMGYhd-7t_FPS-1ugF6sc",
+            authDomain: "zultra-media-player.firebaseapp.com",
+            projectId: "zultra-media-player",
+            storageBucket: "zultra-media-player.firebasestorage.app",
+            messagingSenderId: "1089626227358",
+            appId: "1:1089626227358:web:04721377413acf100cf18f",
+            measurementId: "G-YKLDV9NRSC"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // --- 2. AUTHENTICATION LOGIC ---
+        const authOverlay = document.getElementById('auth-overlay');
+        const appContainer = document.getElementById('app-container');
+        const errorDiv = document.getElementById('auth-error');
+
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                // User is logged in
+                authOverlay.style.display = 'none';
+                appContainer.classList.add('visible'); // Show App
+                document.getElementById('user-email-display').innerText = user.email;
+                document.getElementById('avatar-letter').innerText = user.email.charAt(0).toUpperCase();
+                loadFromDB(); // Load user's local files
+            } else {
+                // User is logged out
+                authOverlay.style.display = 'flex';
+                appContainer.classList.remove('visible'); // Hide App
+            }
+        });
+
+        function signIn() {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            auth.signInWithEmailAndPassword(e, p).catch(err => errorDiv.innerText = err.message);
+        }
+
+        function signUp() {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            auth.createUserWithEmailAndPassword(e, p).catch(err => errorDiv.innerText = err.message);
+        }
+
+        function logout() {
+            auth.signOut();
+        }
+
+        // --- 3. DATABASE (IndexedDB) for File Persistence ---
+        let db;
+        const request = indexedDB.open("ZultraDB", 1);
+        request.onupgradeneeded = function(e) {
+            db = e.target.result;
+            if(!db.objectStoreNames.contains("media")) {
+                db.createObjectStore("media", { keyPath: "id" });
+            }
+        };
+        request.onsuccess = function(e) { db = e.target.result; };
+
+        function saveToDB(item) {
+            if(!db) return;
+            const tx = db.transaction(["media"], "readwrite");
+            tx.objectStore("media").add(item);
+        }
+
+        function loadFromDB() {
+            if(!db) return setTimeout(loadFromDB, 500); // Wait for DB init
+            const tx = db.transaction(["media"], "readonly");
+            const store = tx.objectStore("media");
+            const req = store.getAll();
+            
+            req.onsuccess = function() {
+                // Convert DB blobs back to URLs
+                library = req.result.map(item => {
+                    item.url = URL.createObjectURL(item.blob); // Recreate ephemeral URL
+                    return item;
+                });
+                renderLibrary();
+            };
+        }
+
+        // --- 4. PLAYER & LIBRARY LOGIC ---
+        let library = [];
+        let currentFilter = 'all';
+        let currentIndex = -1;
+        const jsmediatags = window.jsmediatags;
+        
+        const videoEl = document.getElementById('video-element');
+        const artEl = document.getElementById('art-element');
+        const titleEl = document.getElementById('track-title');
+        const artistEl = document.getElementById('track-artist');
+
+        function handleUpload(files) {
+            Array.from(files).forEach(file => {
+                const isVideo = file.type.startsWith('video');
+                const id = Date.now() + Math.random().toString(36).substr(2,9);
+                
+                const item = {
+                    id: id,
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    artist: isVideo ? "Video" : "Unknown Artist",
+                    type: isVideo ? 'video' : 'audio',
+                    blob: file, // Store actual file blob
+                    url: URL.createObjectURL(file),
+                    cover: null
+                };
+
+                // Add to list immediately
+                library.push(item);
+                
+                // Process Metadata
+                if(!isVideo) {
+                    jsmediatags.read(file, {
+                        onSuccess: function(tag) {
+                            const t = tag.tags;
+                            item.title = t.title || item.title;
+                            item.artist = t.artist || item.artist;
+                            if(t.picture) {
+                                const data = t.picture.data;
+                                const format = t.picture.format;
+                                let base64String = "";
+                                for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
+                                item.cover = `data:${format};base64,${window.btoa(base64String)}`;
+                            }
+                            saveToDB(item); // Save processed item
+                            renderLibrary();
+                        },
+                        onError: function() {
+                            saveToDB(item);
+                            renderLibrary();
+                        }
+                    });
+                } else {
+                    saveToDB(item);
+                    renderLibrary();
+                }
+            });
+            renderLibrary();
+        }
+
+        function filterType(type) {
+            currentFilter = type;
+            document.getElementById('view-title').innerText = type === 'all' ? 'All Media' : (type === 'audio' ? 'Music' : 'Videos');
+            renderLibrary();
+        }
+
+        function renderLibrary() {
+            const container = document.getElementById('library-list');
+            container.innerHTML = '';
+            
+            const filtered = library.filter(i => currentFilter === 'all' || i.type === currentFilter);
+            
+            if(filtered.length === 0) {
+                container.innerHTML = `<div style="text-align:center; margin-top:50px; opacity:0.5;">No items found</div>`;
+                return;
+            }
+
+            filtered.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'song-item';
+                if(videoEl.src === item.url) div.classList.add('playing');
+                
+                let icon = item.type === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-music"></i>';
+                let imgHTML = item.cover 
+                    ? `<img src="${item.cover}" style="width:40px; height:40px; border-radius:4px; object-fit:cover;">` 
+                    : `<div style="width:40px; height:40px; background:#ddd; display:flex; align-items:center; justify-content:center; border-radius:4px; color:#555;">${icon}</div>`;
+
+                div.innerHTML = `
+                    ${imgHTML}
+                    <div style="flex:1; margin-left:15px;">
+                        <div style="font-weight:600;">${item.title}</div>
+                        <div style="font-size:0.85rem; color:var(--text-sub);">${item.artist}</div>
+                    </div>
+                `;
+                div.onclick = () => playItem(item);
+                container.appendChild(div);
+            });
+        }
+
+        function playItem(item) {
+            videoEl.src = item.url;
+            videoEl.play();
+            
+            titleEl.innerText = item.title;
+            artistEl.innerText = item.artist;
+
+            if(item.type === 'video') {
+                videoEl.style.display = 'block';
+                artEl.style.display = 'none';
+            } else {
+                videoEl.style.display = 'none';
+                artEl.style.display = 'block';
+                artEl.src = item.cover || 'https://via.placeholder.com/120x68?text=Audio';
+            }
+            updatePlayIcon(true);
+            renderLibrary(); // Update active highlight
+        }
+
+        // --- Controls ---
+        function togglePlay() {
+            if(videoEl.paused) {
+                videoEl.play();
+                updatePlayIcon(true);
+            } else {
+                videoEl.pause();
+                updatePlayIcon(false);
+            }
+        }
+
+        function updatePlayIcon(isPlaying) {
+            document.getElementById('play-icon').className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
+        }
+
+        function nextTrack() {
+            // Simple next logic based on current list state
+            // (A robust app would track indices better, this is a simplified version)
+            // For now, just looping the library array for demo
+            if(!videoEl.src) return;
+        }
+        function prevTrack() {
+            videoEl.currentTime = 0;
+        }
+
+        function setVolume(v) { videoEl.volume = v; }
+        
+        function seek(e) {
+            if(!videoEl.src) return;
+            const rect = e.target.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            videoEl.currentTime = pct * videoEl.duration;
+        }
+
+        function toggleFullscreen() {
+            if (videoEl.style.display !== 'none') {
+                if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+        }
+
+        // Time Update
+        videoEl.addEventListener('timeupdate', () => {
+            if(videoEl.duration) {
+                const pct = (videoEl.currentTime / videoEl.duration) * 100;
+                document.getElementById('bar-fill').style.width = pct + '%';
+                
+                const fmt = t => {
+                    const m = Math.floor(t/60);
+                    const s = Math.floor(t%60).toString().padStart(2,'0');
+                    return m+':'+s;
+                }
+                document.getElementById('curr-time').innerText = fmt(videoEl.currentTime);
+                document.getElementById('total-time').innerText = fmt(videoEl.duration);
+            }
+        });
+        
+    </script>
+</body>
+</html>
