@@ -24,126 +24,119 @@
             background-color: var(--bg-dark);
             background-image: radial-gradient(circle at bottom right, rgba(224, 86, 253, 0.1), transparent 40%);
             color: var(--text-main);
-            display: flex;
             height: 100vh;
+            overflow: hidden;
         }
 
-        /* Sidebar - Matches Ecosystem */
-        .sidebar {
-            width: 260px;
-            background: var(--glass-bg);
-            border-right: 1px solid var(--glass-border);
-            backdrop-filter: blur(20px);
-            display: flex;
-            flex-direction: column;
-            padding: 30px 20px;
-        }
-
-        .brand {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 40px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand-icon {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #4facfe 0%, var(--accent) 100%);
-            border-radius: 8px;
+        /* --- LOGIN SCREEN OVERLAY --- */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark);
+            background-image: radial-gradient(circle at 50% -20%, rgba(224, 86, 253, 0.15), transparent 60%);
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 18px;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
         }
 
-        .nav-link {
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--text-muted);
-            text-decoration: none;
+        .auth-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 24px 40px rgba(0,0,0,0.4);
+        }
+
+        .auth-card h2 { margin: 0 0 8px; font-weight: 600; }
+        .auth-card p { color: var(--text-muted); font-size: 14px; margin: 0 0 30px; }
+        
+        .auth-card input {
+            width: 100%; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 14px 16px; color: white; font-size: 15px;
+            box-sizing: border-box; outline: none; margin-bottom: 16px;
+        }
+        .auth-card input:focus { border-color: var(--accent); }
+        
+        .auth-card button {
+            width: 100%; background: var(--accent); color: white; border: none;
+            border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer;
+        }
+        .auth-card button:hover { background: var(--accent-hover); }
+
+        /* --- MAIN APP INTERFACE (Hidden by default) --- */
+        #app-interface {
+            display: none; /* Hidden until logged in */
+            height: 100%;
+            width: 100%;
             display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.2s;
-            margin-bottom: 8px;
-            cursor: pointer;
         }
 
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
+        .sidebar {
+            width: 260px; background: var(--glass-bg); border-right: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px); display: flex; flex-direction: column; padding: 30px 20px;
         }
 
-        .nav-link.active {
-            background: rgba(224, 86, 253, 0.15);
-            color: var(--accent);
-            font-weight: 500;
-        }
+        .brand { font-size: 24px; font-weight: 700; margin-bottom: 40px; display: flex; align-items: center; gap: 12px; }
+        .brand-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #4facfe 0%, var(--accent) 100%); border-radius: 8px; display: flex; justify-content: center; align-items: center; font-size: 18px; }
 
+        .nav-link { padding: 12px 16px; border-radius: 12px; color: var(--text-muted); text-decoration: none; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; cursor: pointer; }
+        .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-main); }
+        .nav-link.active { background: rgba(224, 86, 253, 0.15); color: var(--accent); font-weight: 500; }
         .spacer { flex-grow: 1; }
 
-        /* Media Area */
-        .media-container {
-            flex-grow: 1;
-            padding: 40px 60px;
-            overflow-y: auto;
-        }
-
-        .upload-btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-
+        .media-container { flex-grow: 1; padding: 40px 60px; overflow-y: auto; }
+        .upload-btn { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 10px; }
         .upload-btn:hover { background: var(--accent-hover); }
-
-        /* Loader */
-        #loader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-dark); display: flex; justify-content: center; align-items: center;
-            z-index: 9999; font-size: 20px;
-        }
     </style>
 </head>
 <body>
 
-    <div id="loader"><i class="fas fa-spinner fa-spin"></i> &nbsp; Authenticating...</div>
-
-    <div class="sidebar">
-        <div class="brand">
-            <div class="brand-icon">Z</div> Zultra Media
+    <div id="login-overlay">
+        <div class="auth-card">
+            <div class="brand-icon" style="margin: 0 auto 24px;">Z</div>
+            <h2>Zultra Media</h2>
+            <p>Sign in with your Zultra ID to continue.</p>
+            <input type="email" id="media-email" placeholder="Email Address">
+            <input type="password" id="media-password" placeholder="Password">
+            <button onclick="loginToApp()">Sign In</button>
+            <p style="margin-top: 20px; font-size: 12px;">Need an account? <a href="https://account.zultra.cloud" style="color: var(--accent); text-decoration: none;">Create one here</a></p>
         </div>
-        
-        <a class="nav-link active"><i class="fas fa-compact-disc"></i> Library</a>
-        <a class="nav-link"><i class="fas fa-heart"></i> Favorites</a>
-        
-        <div class="spacer"></div>
-        
-        <a href="https://account.zultra.cloud" class="nav-link"><i class="fas fa-cloud"></i> Zultra Cloud</a>
-        <a href="https://zultraai.zultra.cloud" class="nav-link"><i class="fas fa-brain"></i> Zultra AI</a>
     </div>
 
-    <div class="media-container">
-        <h1 style="margin-top: 0;">My Library</h1>
-        <button class="upload-btn"><i class="fas fa-upload"></i> Upload Media</button>
-        
+    <div id="app-interface" style="display: none;">
+        <div class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">Z</div> Zultra Media
+            </div>
+            
+            <a class="nav-link active"><i class="fas fa-compact-disc"></i> Library</a>
+            <a class="nav-link"><i class="fas fa-heart"></i> Favorites</a>
+            
+            <div class="spacer"></div>
+            
+            <a href="https://account.zultra.cloud" class="nav-link"><i class="fas fa-cloud"></i> Zultra Cloud</a>
+            <a href="https://zultraai.zultra.cloud" class="nav-link"><i class="fas fa-brain"></i> Zultra AI</a>
+            <a onclick="logoutOfApp()" class="nav-link" style="color: #ff453a;"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
         </div>
+
+        <div class="media-container">
+            <h1 style="margin-top: 0;">My Library</h1>
+            <button class="upload-btn"><i class="fas fa-upload"></i> Upload Media</button>
+            
+            </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
+        // Your exact Firebase details
         const firebaseConfig = {
             apiKey: "AIzaSyBqhm6v1epzDxuMGYhd-7t_FPS-1ugF6sc",
             authDomain: "zultra-media-player.firebaseapp.com",
@@ -157,16 +150,33 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // Check if user is allowed here
+        // Check if they are logged in
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // User is signed in, let them use the app
-                document.getElementById('loader').style.display = 'none';
+                // Hide Login, Show Media App
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('app-interface').style.display = 'flex';
             } else {
-                // Kick them back to login
-                window.location.href = "https://account.zultra.cloud"; 
+                // Show Login, Hide Media App
+                document.getElementById('login-overlay').style.display = 'flex';
+                document.getElementById('app-interface').style.display = 'none';
             }
         });
+
+        // Login Button Function
+        window.loginToApp = function() {
+            const email = document.getElementById('media-email').value;
+            const pass = document.getElementById('media-password').value;
+            
+            signInWithEmailAndPassword(auth, email, pass).catch((error) => {
+                alert("Login failed: " + error.message);
+            });
+        };
+
+        // Logout Button Function
+        window.logoutOfApp = function() {
+            signOut(auth);
+        };
     </script>
 </body>
 </html>
